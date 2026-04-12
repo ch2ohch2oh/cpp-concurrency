@@ -1,0 +1,23 @@
+# CMake build artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+build/
+*.cmake
+
+# Compiled executables
+*.exe
+*.out
+*.app
+
+# Compiled object files
+*.o
+*.obj
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

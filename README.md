@@ -31,7 +31,7 @@ A comprehensive todo list of C++ concurrency topics that every C++ programmer sh
 - [ ] Understand wait/notify mechanisms: std::atomic::wait and std::atomic::notify_one/notify_all (C++20)
 - [ ] Study executor concepts and the future of parallel execution in C++
 - [ ] Learn about hardware concurrency: std::thread::hardware_concurrency and CPU affinity
-- [ ] Understand exception handling in multithreaded contexts
+- [x] Understand exception handling in multithreaded contexts
 
 ## Learning Path
 
