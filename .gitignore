@@ -21,3 +21,6 @@ build/
 *.swp
 *.swo
 *~
+
+# Cache
+.cache/
