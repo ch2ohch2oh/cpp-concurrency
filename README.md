@@ -5,7 +5,7 @@ A comprehensive todo list of C++ concurrency topics that every C++ programmer sh
 ## High Priority Topics
 
 - [x] Learn std::thread basics: creation, joining, detaching, and thread management
-- [ ] Master mutex types: std::mutex, std::recursive_mutex, std::timed_mutex, and std::shared_mutex
+- [x] Master mutex types: std::mutex, std::recursive_mutex, std::timed_mutex, and std::shared_mutex
 - [ ] Understand lock wrappers: std::lock_guard, std::unique_lock, std::scoped_lock, and std::shared_lock
 - [ ] Learn condition variables: std::condition_variable and std::condition_variable_any for thread synchronization
 - [ ] Study futures and promises: std::future, std::promise, std::packaged_task, and std::async
