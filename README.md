@@ -9,7 +9,7 @@ A comprehensive todo list of C++ concurrency topics that every C++ programmer sh
 - [x] Understand lock wrappers: `std::lock_guard`, `std::unique_lock`, `std::scoped_lock`, and `std::shared_lock`
 - [ ] Learn condition variables: `std::condition_variable` and `std::condition_variable_any` for thread synchronization
 - [ ] Study futures and promises: `std::future`, `std::promise`, `std::packaged_task`, and `std::async`
-- [ ] Master atomic operations: `std::atomic`, atomic types, and atomic operations on shared data
+- [x] Master atomic operations: `std::atomic`, atomic types, and atomic operations on shared data
 - [x] Understand memory ordering: `memory_order_relaxed`, `memory_order_acquire`, `memory_order_release`, `memory_order_acq_rel`, `memory_order_seq_cst`
 - [ ] Learn deadlock detection and prevention techniques
 - [ ] Understand data races vs race conditions and how to prevent them
