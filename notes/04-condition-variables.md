@@ -4,6 +4,35 @@
 
 ### Basic Condition Variable Usage
 
+Condition variables allow threads to wait for a condition to become true. The typical pattern is:
+- The waiting thread locks a mutex, checks a condition, and if false, calls `wait()` which atomically unlocks the mutex and blocks
+- When notified, `wait()` re-acquires the mutex and returns, allowing the thread to check the condition again
+- The notifying thread modifies the shared state while holding the mutex, then calls `notify_one()` or `notify_all()`
+
+This ensures no race conditions between checking the condition and waiting.
+
+```text
+Thread A (Waiting)              Thread B (Notifying)
+-----------------              -----------------
+lock mutex                     lock mutex
+check condition (false)        modify condition
+    |                             |
+    v                             v
+cv.wait() -----------------> atomically unlock mutex
+    |                             |
+    |                             cv.notify_one()
+    |                             |
+    v                             |
+[blocked in kernel] <-----------|
+    |                             |
+    | (woken up)                  unlock mutex
+    v                             |
+re-acquire mutex ---------------->
+check condition (true)           |
+    v                             |
+proceed ------------------------->
+```
+
 ```cpp
 #include <mutex>
 #include <condition_variable>
@@ -35,6 +64,13 @@ int main() {
 ```
 
 ### Producer-Consumer Pattern
+
+The producer-consumer pattern is a classic synchronization pattern where:
+- Producers generate data and add it to a shared buffer
+- Consumers remove data from the buffer and process it
+- Condition variables coordinate when the buffer is full (producers wait) or empty (consumers wait)
+
+This pattern decouples production and consumption rates, allowing each to operate at its own pace while preventing buffer overflow or underflow.
 
 ```cpp
 #include <mutex>
@@ -88,6 +124,13 @@ int main() {
 
 ### std::condition_variable_any - With Any Lockable
 
+`std::condition_variable_any` is more flexible than `std::condition_variable` as it works with any lockable type (not just `std::unique_lock<std::mutex>`). This is useful when:
+- Working with `std::shared_mutex` for read-write locks
+- Using custom lock types
+- Needing to lock with different lock policies
+
+However, `condition_variable_any` may have slightly higher overhead than `condition_variable` due to its generic implementation, so use `condition_variable` when you only need `std::mutex`.
+
 ```cpp
 #include <mutex>
 #include <shared_mutex>
@@ -112,6 +155,14 @@ void writer() {
 ```
 
 ### Timed Wait
+
+Timed wait operations allow threads to wait for a condition with a timeout. This is useful for:
+- Implementing timeouts in network operations
+- Avoiding indefinite blocking when a condition might never be met
+- Implementing periodic checks while still being responsive to notifications
+- Building retry mechanisms with backoff
+
+The `wait_for()` and `wait_until()` methods return `bool` indicating whether the condition was met (true) or the timeout expired (false).
 
 ```cpp
 #include <mutex>
@@ -141,6 +192,14 @@ int main() {
 ```
 
 ### Realistic Example: Thread Pool with Work Queue
+
+A thread pool is a common pattern where a fixed number of worker threads process tasks from a shared queue. Condition variables are essential here:
+- Workers wait on the condition variable when the task queue is empty
+- When a task is enqueued, `notify_one()` wakes a sleeping worker
+- When shutting down, `notify_all()` wakes all workers to check the stop flag
+- The predicate ensures workers don't miss notifications (lost wakeup problem)
+
+This design efficiently reuses threads, avoiding the overhead of creating/destroying threads for each task.
 
 ```cpp
 #include <mutex>
@@ -381,7 +440,12 @@ public:
 
 ### Spurious Wakeups
 
-Condition variables can experience spurious wakeups:
+Condition variables can experience spurious wakeups - threads may wake up from `wait()` even when no notification was sent. This is not a bug but a design choice:
+- **Linux**: Due to futex implementation and signal handling
+- **Performance**: Allows simpler, more efficient kernel implementations
+- **Portability**: Different OSes have different behaviors
+
+Because spurious wakeups can occur, you must always use a predicate with `wait()`. The predicate is checked before waiting and after every wakeup, ensuring the thread only proceeds when the condition is actually true.
 
 ```cpp
 // WRONG: Doesn't handle spurious wakeups
@@ -413,27 +477,62 @@ void wait(std::unique_lock<std::mutex>& lock, Predicate pred) {
 }
 ```
 
-### Memory Ordering and Condition Variables
+**Note on wait() without predicate:**
 
-Condition variables provide acquire-release semantics:
+`std::condition_variable::wait()` also has an overload that takes only the lock (no predicate):
 
 ```cpp
-// notify_one() provides release semantics
+void wait(std::unique_lock<std::mutex>& lock);
+```
+
+However, this overload is vulnerable to spurious wakeups and should generally be avoided. If you use it, you must manually check the condition in a loop:
+
+```cpp
+// Manual loop (equivalent to predicate version)
+void manual_wait() {
+    std::unique_lock<std::mutex> lock(mtx);
+    while (!condition_met) {
+        cv.wait(lock);  // No predicate - vulnerable to spurious wakeups
+    }
+    // Proceed
+}
+```
+
+The predicate-based version is preferred because it handles the loop and spurious wakeups automatically.
+
+### Memory Ordering and Condition Variables
+
+Condition variables provide acquire-release semantics, which is crucial for correct synchronization:
+
+- **notify_one() / notify_all()**: Provide release semantics - all writes before the notification become visible to the woken thread
+- **wait()**: Provides acquire semantics - all writes from the notifying thread are visible after wait returns
+
+This ensures that when a thread wakes up from `wait()`, it sees all memory modifications made by the notifying thread before it called `notify()`. The mutex itself also provides synchronization, but condition variables add an additional synchronization point.
+
+```cpp
+// Conceptual: notify_one() provides release semantics
 void notify_one() noexcept {
     std::atomic_thread_fence(std::memory_order_release);
     native_notify_one();
 }
 
-// wait() provides acquire semantics
+// Conceptual: wait() provides acquire semantics
 void wait(std::unique_lock<std::mutex>& lock) {
     native_wait(lock);
     std::atomic_thread_fence(std::memory_order_acquire);
 }
 ```
 
+In practice, you don't need to manually specify memory ordering with condition variables - the standard library handles this for you. The combination of the mutex and condition variable ensures proper happens-before relationships.
+
 ### Lost Wakeup Problem
 
-Proper synchronization prevents lost wakeups:
+The lost wakeup problem occurs when a notification is sent before a thread starts waiting, causing the thread to wait forever. This can happen if:
+1. The consumer checks the condition, finds it false, and is about to call wait()
+2. The producer modifies the condition and calls notify()
+3. The consumer then calls wait() and blocks, missing the notification
+
+The solution is to always hold the mutex when modifying the condition AND when calling notify(). Combined with using a predicate in wait(), this ensures atomicity between condition check and wait.
 
 ```cpp
 // WRONG: Lost wakeup possible
@@ -462,6 +561,12 @@ void consumer_correct() {
 
 ### Broadcast vs Signal
 
+When notifying waiting threads, you have two options:
+- `notify_one()`: Wakes a single waiting thread. Use this when only one thread can make progress, or when you want to minimize contention (e.g., single consumer, or when only one thread needs to handle the event).
+- `notify_all()`: Wakes all waiting threads. Use this when multiple threads need to check the condition, or when the state change affects all waiting threads (e.g., shutdown signal, or when multiple threads might be able to proceed).
+
+Choosing correctly impacts performance: `notify_all()` causes all threads to wake and contend for the mutex, while `notify_one()` is more efficient but may not wake the right thread in some scenarios.
+
 ```cpp
 // notify_one() wakes one waiting thread
 void single_notifier() {
@@ -478,14 +583,62 @@ void broadcast_notifier() {
 }
 ```
 
+**Example: Multiple workers waiting for shutdown signal**
+
+```cpp
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <iostream>
+#include <vector>
+
+std::mutex mtx;
+std::condition_variable cv;
+bool shutdown = false;
+
+void worker(int id) {
+    while (true) {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [] { return shutdown; });
+        
+        std::cout << "Worker " << id << " shutting down\n";
+        return;
+    }
+}
+
+int main() {
+    std::vector<std::thread> workers;
+    for (int i = 0; i < 5; ++i) {
+        workers.emplace_back(worker, i);
+    }
+    
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        shutdown = true;
+    }
+    cv.notify_all();  // Wake all workers simultaneously
+    
+    for (auto& t : workers) {
+        t.join();
+    }
+    
+    return 0;
+}
+```
+
 ### Implementation Details
 
 The typical implementation uses:
 
-1. **Wait queue**: A queue of waiting threads
-2. **Mutex protection**: Internal mutex protects the wait queue
-3. **Atomic operations**: For efficient signaling
-4. **Futex (Linux)**: Fast userspace mutex for efficient waiting
+- **Wait queue**: A queue of waiting threads managed by the OS kernel
+- **Mutex protection**: Internal mutex protects the wait queue and state
+- **Atomic operations**: For efficient signaling and state changes
+- **Futex (Linux)**: Fast userspace mutex for efficient waiting - threads can block in the kernel without expensive system calls for every operation
+- **Condition variable + mutex pairing**: The condition variable is always used with a mutex, and the wait operation atomically releases the mutex and blocks
+
+The key insight is that condition variables are stateless - they don't remember whether a notification was sent. This is why predicates are essential and why the lost wakeup problem must be avoided through proper synchronization.
 
 ```cpp
 // Conceptual futex-based implementation (Linux)
