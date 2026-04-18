@@ -4,15 +4,9 @@ project(examples)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Add individual example directories as they are created
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/02-mutex-types")
-    add_subdirectory(02-mutex-types)
-endif()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/07-memory-ordering")
-    add_subdirectory(07-memory-ordering)
-endif()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/22-exception-handling")
-    add_subdirectory(22-exception-handling)
-endif()
+# Automatically add all example subdirectories that have a CMakeLists.txt
+file(GLOB CMAKE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*/CMakeLists.txt")
+foreach(CMAKE_FILE ${CMAKE_FILES})
+    get_filename_component(EXAMPLE_DIR ${CMAKE_FILE} DIRECTORY)
+    add_subdirectory(${EXAMPLE_DIR})
+endforeach()
