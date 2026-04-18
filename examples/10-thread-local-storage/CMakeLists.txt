@@ -1,0 +1,5 @@
+add_executable(01-basic-thread-local 01-basic-thread-local.cpp)
+add_executable(02-thread-local-class 02-thread-local-class.cpp)
+add_executable(03-thread-local-rng 03-thread-local-rng.cpp)
+add_executable(04-thread-local-cache 04-thread-local-cache.cpp)
+add_executable(05-thread-local-db-connection 05-thread-local-db-connection.cpp)
