@@ -67,7 +67,7 @@ Even though `ready` is atomic, with `relaxed` ordering the consumer might see `r
 
 `memory_order_relaxed` is the weakest memory ordering. It guarantees atomicity but no ordering constraints. Operations on different atomic variables can be freely reordered by the compiler or CPU. This is useful for simple counters where the relative order of operations doesn't matter, but it's dangerous when operations need to be synchronized across threads.
 
-**See example**: `examples/07-memory-ordering/01-incorrect-relaxed-usage.cpp` demonstrates how incorrect relaxed ordering causes program failure.
+**See example**: `examples/memory-ordering/01-incorrect-relaxed-usage.cpp` demonstrates how incorrect relaxed ordering causes program failure.
 
 **Key characteristics:**
 - Only guarantees atomicity of the operation itself

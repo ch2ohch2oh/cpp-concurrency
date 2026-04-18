@@ -19,7 +19,7 @@ void increment() {
 - Changes in one thread don't affect other threads
 - Automatic cleanup when thread exits
 
-**See:** `examples/10-thread-local-storage/01-basic-thread-local.cpp`
+**See:** `examples/thread-local-storage/01-basic-thread-local.cpp`
 
 ### thread_local with Classes
 
@@ -44,7 +44,7 @@ thread_local int ThreadLocalLogger::instance_count_ = 0;
 - Each thread has its own instance of the static member
 - Constructor runs once per thread on first access
 
-**See:** `examples/10-thread-local-storage/02-thread-local-class.cpp`
+**See:** `examples/thread-local-storage/02-thread-local-class.cpp`
 
 ### Thread-Specific Random Number Generator
 
@@ -64,7 +64,7 @@ int random_int(int min, int max) {
 - No locking needed for thread-safe random number generation
 - Better performance than global RNG with mutex
 
-**See:** `examples/10-thread-local-storage/03-thread-local-rng.cpp`
+**See:** `examples/thread-local-storage/03-thread-local-rng.cpp`
 
 ### Thread-Local Cache
 
@@ -88,7 +88,7 @@ public:
 - Each thread has independent cache entries
 - Useful for read-heavy workloads with per-thread computation
 
-**See:** `examples/10-thread-local-storage/04-thread-local-cache.cpp`
+**See:** `examples/thread-local-storage/04-thread-local-cache.cpp`
 
 ### Realistic Example: Thread-Local Database Connection
 
@@ -114,7 +114,7 @@ public:
 - No contention between threads for connection access
 - Must implement cleanup to avoid leaks
 
-**See:** `examples/10-thread-local-storage/05-thread-local-db-connection.cpp`
+**See:** `examples/thread-local-storage/05-thread-local-db-connection.cpp`
 
 ## Underlying Implementation
 

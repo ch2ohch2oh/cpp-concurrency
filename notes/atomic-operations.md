@@ -121,7 +121,7 @@ This pairing creates a synchronization point: when one thread clears the flag an
 
 The compare-exchange operation is the foundation of most lock-free algorithms. It atomically compares the atomic variable with an expected value, and if they match, updates it to a new value. If they don't match, it updates the expected value with the actual current value.
 
-This is typically used in a loop to retry the operation if another thread modified the value in the meantime. See [examples/06-atomic-operations/01-compare-exchange-loop.cpp](../examples/06-atomic-operations/01-compare-exchange-loop.cpp) for a complete example.
+This is typically used in a loop to retry the operation if another thread modified the value in the meantime. See [examples/atomic-operations/01-compare-exchange-loop.cpp](../examples/atomic-operations/01-compare-exchange-loop.cpp) for a complete example.
 
 Note that we use `compare_exchange_weak` which can fail spuriously (even when the values match). This is acceptable in loops and can be more efficient on some architectures.
 
@@ -246,7 +246,7 @@ A memory barrier (also called a memory fence) is a hardware or compiler instruct
 - Statistics collection (e.g., counting events, profiling)
 - Any case where you need atomicity but not synchronization with other memory
 
-When you don't need synchronization between threads, `memory_order_relaxed` is significantly faster because it avoids these expensive memory barrier operations. See [examples/06-atomic-operations/02-lock-free-counter.cpp](../examples/06-atomic-operations/02-lock-free-counter.cpp) for a complete example.
+When you don't need synchronization between threads, `memory_order_relaxed` is significantly faster because it avoids these expensive memory barrier operations. See [examples/atomic-operations/02-lock-free-counter.cpp](../examples/atomic-operations/02-lock-free-counter.cpp) for a complete example.
 
 This approach scales well because threads don't block each other—each increment is a single atomic instruction. However, the final count might not be visible to all threads immediately due to the relaxed memory order.
 
