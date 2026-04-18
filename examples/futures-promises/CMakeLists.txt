@@ -1,0 +1,7 @@
+add_executable(01-basic-promise-future 01-basic-promise-future.cpp)
+add_executable(02-async-task 02-async-task.cpp)
+add_executable(03-packaged-task 03-packaged-task.cpp)
+add_executable(04-multiple-futures 04-multiple-futures.cpp)
+add_executable(05-shared-future 05-shared-future.cpp)
+add_executable(06-timeout 06-timeout.cpp)
+add_executable(07-parallel-mapreduce 07-parallel-mapreduce.cpp)

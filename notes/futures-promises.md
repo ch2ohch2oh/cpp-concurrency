@@ -1,210 +1,101 @@
 # Futures and Promises: Usage and Implementation
 
+## Motivation: Why Futures and Promises?
+
+### The Problem: Thread Communication Without Futures
+
+Before futures and promises, communicating between threads required manual synchronization with shared state, mutexes, and condition variables. This approach had several problems:
+
+**1. Verbose and error-prone:**
+```cpp
+// Manual thread communication (the old way)
+int result;
+bool ready = false;
+std::mutex mtx;
+std::condition_variable cv;
+
+void worker() {
+    std::lock_guard<std::mutex> lock(mtx);
+    result = 42;
+    ready = true;
+    cv.notify_one();
+}
+
+int main() {
+    std::thread t(worker);
+    
+    std::unique_lock<std::mutex> lock(mtx);
+    cv.wait(lock, [] { return ready; });
+    std::cout << result << "\n";
+    
+    t.join();
+}
+```
+
+**2. Exception handling is difficult:** If the worker throws an exception, how do you propagate it to the waiting thread? You need additional shared state and error handling logic.
+
+**3. No type safety for the communication channel:** The shared state is just a variable; nothing enforces that it's used correctly as a one-time channel.
+
+**4. Hard to compose:** Waiting for multiple threads to complete requires complex coordination logic.
+
+### The Solution: Futures and Promises
+
+Futures and promises provide a **one-time, type-safe channel** for thread communication:
+
+- **Promise**: The producer side - sets the value (or exception) exactly once
+- **Future**: The consumer side - retrieves the value (or exception), blocking if not ready
+
+**Key benefits:**
+
+1. **Clean API**: No manual mutex/condition variable boilerplate
+2. **Exception propagation**: Exceptions in the producer thread automatically propagate to the consumer
+3. **Type safety**: The channel type is enforced at compile time
+4. **One-time semantics**: Prevents multiple reads/writes bugs
+5. **Composable**: Easy to wait for multiple futures, chain operations, etc.
+6. **Separation of concerns**: Producer doesn't need to know about the consumer
+
+### When to Use Futures/Promises
+
+- **Async task execution**: Launch a task and get its result later
+- **Parallel computation**: Break work into independent parallel tasks
+- **Thread pool results**: Return results from worker threads
+- **API boundaries**: Cleanly separate async work from synchronous code
+
+### When NOT to Use Futures/Promises
+
+- **Continuous data streams**: Use queues/channels instead
+- **Multiple consumers**: Use `shared_future` or other synchronization
+- **Simple callbacks**: If you just need notification, consider condition variables
+
 ## Practical Usage
 
 ### std::future and std::promise - Basic Usage
 
-```cpp
-#include <future>
-#include <thread>
-#include <iostream>
-
-void worker(std::promise<int> p) {
-    try {
-        // Do some work
-        int result = 42;
-        p.set_value(result);
-    } catch (...) {
-        p.set_exception(std::current_exception());
-    }
-}
-
-int main() {
-    std::promise<int> prom;
-    std::future<int> fut = prom.get_future();
-    
-    std::thread t(worker, std::move(prom));
-    
-    // Wait for result
-    int result = fut.get();
-    std::cout << "Result: " << result << "\n";
-    
-    t.join();
-    return 0;
-}
-```
+See `examples/futures-promises/01-basic-promise-future.cpp`
 
 ### std::async - Asynchronous Task Execution
 
-```cpp
-#include <future>
-#include <iostream>
-
-int calculate() {
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    return 42;
-}
-
-int main() {
-    // Launch async task
-    std::future<int> fut = std::async(std::launch::async, calculate);
-    
-    // Do other work while task runs
-    std::cout << "Task is running...\n";
-    
-    // Get result (blocks if not ready)
-    int result = fut.get();
-    std::cout << "Result: " << result << "\n";
-    
-    return 0;
-}
-```
+See `examples/futures-promises/02-async-task.cpp`
 
 ### std::packaged_task - Task with Future
 
-```cpp
-#include <future>
-#include <functional>
-#include <iostream>
-
-int square(int x) {
-    return x * x;
-}
-
-int main() {
-    std::packaged_task<int(int)> task(square);
-    std::future<int> fut = task.get_future();
-    
-    std::thread t(std::move(task), 10);
-    
-    int result = fut.get();
-    std::cout << "Result: " << result << "\n";
-    
-    t.join();
-    return 0;
-}
-```
+See `examples/futures-promises/03-packaged-task.cpp`
 
 ### Multiple Futures with std::when_all (C++23) or Manual Implementation
 
-```cpp
-#include <future>
-#include <vector>
-#include <iostream>
-
-int main() {
-    std::vector<std::future<int>> futures;
-    
-    for (int i = 0; i < 5; ++i) {
-        futures.push_back(std::async(std::launch::async, [i] {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100 * i));
-            return i * i;
-        }));
-    }
-    
-    // Wait for all futures
-    for (auto& fut : futures) {
-        std::cout << "Result: " << fut.get() << "\n";
-    }
-    
-    return 0;
-}
-```
+See `examples/futures-promises/04-multiple-futures.cpp`
 
 ### std::shared_future - Multiple Readers
 
-```cpp
-#include <future>
-#include <thread>
-#include <iostream>
-
-int main() {
-    std::promise<int> prom;
-    std::future<int> fut = prom.get_future();
-    std::shared_future<int> shared = fut.share();
-    
-    std::thread t1([shared] {
-        std::cout << "Thread 1: " << shared.get() << "\n";
-    });
-    
-    std::thread t2([shared] {
-        std::cout << "Thread 2: " << shared.get() << "\n";
-    });
-    
-    prom.set_value(42);
-    
-    t1.join();
-    t2.join();
-    
-    return 0;
-}
-```
+See `examples/futures-promises/05-shared-future.cpp`
 
 ### Timeout with future::wait_for
 
-```cpp
-#include <future>
-#include <chrono>
-#include <iostream>
-
-int main() {
-    std::future<int> fut = std::async(std::launch::async, [] {
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-        return 42;
-    });
-    
-    if (fut.wait_for(std::chrono::seconds(1)) == std::future_status::ready) {
-        std::cout << "Result: " << fut.get() << "\n";
-    } else {
-        std::cout << "Timeout\n";
-    }
-    
-    return 0;
-}
-```
+See `examples/futures-promises/06-timeout.cpp`
 
 ### Realistic Example: Parallel MapReduce
 
-```cpp
-#include <future>
-#include <vector>
-#include <algorithm>
-#include <numeric>
-
-template<typename Iterator, typename Func>
-auto parallel_map(Iterator begin, Iterator end, Func f) 
-    -> std::vector<decltype(f(*begin))> {
-    
-    using ResultType = decltype(f(*begin));
-    std::vector<std::future<ResultType>> futures;
-    
-    for (auto it = begin; it != end; ++it) {
-        futures.push_back(std::async(std::launch::async, [f, it] {
-            return f(*it);
-        }));
-    }
-    
-    std::vector<ResultType> results;
-    for (auto& fut : futures) {
-        results.push_back(fut.get());
-    }
-    
-    return results;
-}
-
-int main() {
-    std::vector<int> data = {1, 2, 3, 4, 5};
-    
-    auto results = parallel_map(data.begin(), data.end(), [](int x) {
-        return x * x;
-    });
-    
-    int sum = std::accumulate(results.begin(), results.end(), 0);
-    std::cout << "Sum of squares: " << sum << "\n";
-    
-    return 0;
-}
-```
+See `examples/futures-promises/07-parallel-mapreduce.cpp`
 
 ## Underlying Implementation
 
@@ -213,13 +104,13 @@ int main() {
 The future/promise pattern implements a one-time channel:
 
 ```
-Producer Thread          Consumer Thread
-    |                         |
-    v                         v
-[Promise] -----> [Shared State] <----- [Future]
-    |                         |
-    v                         v
-Set value/exception      Wait for result
+Producer Thread                      Consumer Thread
+       |                                    |
+       v                                    v
+  [Promise] -----> [Shared State] <----- [Future]
+       |                                    |
+       v                                    v
+Set value/exception                  Wait for result
 ```
 
 ### Shared State Implementation

@@ -8,7 +8,7 @@ A comprehensive todo list of C++ concurrency topics that every C++ programmer sh
 - [x] Master mutex types: `std::mutex`, `std::recursive_mutex`, `std::timed_mutex`, and `std::shared_mutex` ([notes](notes/mutex-types.md))
 - [x] Understand lock wrappers: `std::lock_guard`, `std::unique_lock`, `std::scoped_lock`, and `std::shared_lock` ([notes](notes/lock-wrappers.md))
 - [x] Learn condition variables: `std::condition_variable` and `std::condition_variable_any` for thread synchronization ([notes](notes/condition-variables.md))
-- [ ] Study futures and promises: `std::future`, `std::promise`, `std::packaged_task`, and `std::async` ([notes](notes/futures-promises.md))
+- [x] Study futures and promises: `std::future`, `std::promise`, `std::packaged_task`, and `std::async` ([notes](notes/futures-promises.md))
 - [x] Master atomic operations: `std::atomic`, atomic types, and atomic operations on shared data ([notes](notes/atomic-operations.md))
 - [x] Understand memory ordering: `memory_order_relaxed`, `memory_order_acquire`, `memory_order_release`, `memory_order_acq_rel`, `memory_order_seq_cst` ([notes](notes/memory-ordering.md))
 - [ ] Learn deadlock detection and prevention techniques ([notes](notes/deadlock-detection-prevention.md))
