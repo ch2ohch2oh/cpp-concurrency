@@ -17,7 +17,7 @@ A comprehensive todo list of C++ concurrency topics that every C++ programmer sh
 ## Medium Priority Topics
 
 - [x] Study thread-local storage using `thread_local` keyword ([notes](notes/thread-local-storage.md))
-- [ ] Learn lock-free programming and lock-free data structures ([notes](notes/lock-free-programming.md))
+- [x] Learn lock-free programming and lock-free data structures ([notes](notes/lock-free-programming.md))
 - [ ] Master C++20 synchronization primitives: `std::barrier`, `std::latch`, and `std::semaphore` ([notes](notes/cpp20-sync-primitives.md))
 - [ ] Understand parallel algorithms from C++17: `std::execution::par` and `std::execution::par_unseq` ([notes](notes/parallel-algorithms.md))
 - [ ] Study thread pool implementation patterns and best practices ([notes](notes/thread-pool.md))
