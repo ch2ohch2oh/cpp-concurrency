@@ -1,0 +1,6 @@
+add_executable(01-latch-basic 01-latch-basic.cpp)
+add_executable(02-barrier-basic 02-barrier-basic.cpp)
+add_executable(03-semaphore-counting 03-semaphore-counting.cpp)
+add_executable(04-semaphore-binary 04-semaphore-binary.cpp)
+add_executable(05-semaphore-timeout 05-semaphore-timeout.cpp)
+add_executable(06-threadpool-semaphore 06-threadpool-semaphore.cpp)
