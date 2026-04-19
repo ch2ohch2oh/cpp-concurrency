@@ -1,46 +1,74 @@
 # Executor Concepts: Usage and Implementation
 
+## Motivation
+
+Executor concepts provide a standardized abstraction for executing tasks, separating the definition of work from how and where it's executed. This pattern enables flexible task scheduling, better resource management, and improved testability by allowing different execution strategies without changing task logic.
+
+The key motivation is to decouple task submission from execution:
+- **Abstraction**: Define work independently of execution mechanism
+- **Flexibility**: Swap execution strategies without changing task code
+- **Resource management**: Control thread pools and resource allocation centrally
+- **Testability**: Use inline executors for testing, thread pools for production
+- **Composition**: Combine multiple executors for complex scheduling policies
+
+Executor concepts are particularly useful for:
+- Asynchronous task execution and scheduling
+- Thread pool management and optimization
+- Building composable concurrent systems
+- Testing concurrent code with deterministic execution
+- Implementing custom scheduling policies
+
 ## Practical Usage
 
-### Basic Executor Interface
+See the `examples/executor-concepts/` directory for complete working examples:
+- `01-basic-executor.cpp` - Basic executor interface
+- `02-thread-pool-executor.cpp` - Thread pool executor implementation
 
-```cpp
-#include <functional>
-#include <memory>
-#include <future>
+### Key Concepts
 
-class Executor {
-public:
-    virtual ~Executor() = default;
-    
-    virtual void execute(std::function<void()> task) = 0;
-    
-    template<class F, class... Args>
-    auto submit(F&& f, Args&&... args) -> std::future<decltype(f(args...))> {
-        using ReturnType = decltype(f(args...));
-        
-        auto promise = std::make_shared<std::promise<ReturnType>>();
-        auto future = promise->get_future();
-        
-        execute([promise, f = std::forward<F>(f), args...]() mutable {
-            try {
-                if constexpr (std::is_void_v<ReturnType>) {
-                    f(args...);
-                    promise->set_value();
-                } else {
-                    promise->set_value(f(args...));
-                }
-            } catch (...) {
-                promise->set_exception(std::current_exception());
-            }
-        });
-        
-        return future;
-    }
-};
-```
+**Executor Interface**: Base abstraction with `execute` method for submitting tasks.
+
+**Thread Pool Executor**: Manages a pool of worker threads to execute tasks concurrently.
+
+**Inline Executor**: Executes tasks immediately on the calling thread (useful for testing).
+
+**Serial Executor**: Executes tasks sequentially on a single thread.
+
+**Priority Executor**: Executes tasks based on priority levels.
+
+**Scheduled Executor**: Executes tasks at specific times or after delays.
+
+### Common Patterns
+
+**Task Submission**: Submit callable objects to the executor for asynchronous execution.
+
+**Future-based Results**: Use futures to get results from executor tasks.
+
+**Composite Executors**: Combine multiple executors for load balancing or specialized handling.
+
+## Pros
+
+- **Decoupling**: Separates task definition from execution strategy
+- **Flexibility**: Easy to swap execution implementations
+- **Testability**: Use inline executors for deterministic testing
+- **Resource control**: Centralized management of threads and resources
+- **Composition**: Can combine multiple executors for complex policies
+- **Standardization**: Provides a common interface for task execution
+
+## Cons
+
+- **Overhead**: Abstraction layer adds some overhead
+- **Complexity**: More complex than direct thread management
+- **Not standard**: Executor concepts are not yet standardized in C++
+- **Learning curve**: Requires understanding of different executor types
+- **Error handling**: Exception propagation across executor boundaries can be complex
+- **Limited control**: Less fine-grained control than manual thread management
+
+## Underlying Implementation
 
 ### Thread Pool Executor
+
+The thread pool executor manages a pool of worker threads that execute tasks from a queue:
 
 ```cpp
 #include <thread>
@@ -604,13 +632,13 @@ public:
 
 ## Best Practices
 
-1. Choose executor type based on concurrency requirements
-2. Use inline executor for simple, non-blocking operations
-3. Use thread pool for CPU-bound parallel work
-4. Use serial executor for tasks requiring ordering
-5. Consider priority executor for QoS requirements
-6. Use work stealing for load balancing
-7. Implement proper exception handling in executors
-8. Provide graceful shutdown mechanisms
-9. Monitor executor metrics (queue size, active workers)
-10. Consider executor composition for complex workflows
+1. **Decouple tasks from execution**: Use executor interface to separate work definition from execution
+2. **Choose appropriate executor type**: Match executor type to your use case (inline for testing, thread pool for production)
+3. **Handle exceptions**: Ensure exceptions are properly propagated through executors
+4. **Consider task granularity**: Balance between too many small tasks and too few large tasks
+5. **Use composite executors**: Combine executors for complex scheduling policies
+6. **Monitor resource usage**: Track thread counts, queue sizes, and resource consumption
+7. **Implement proper shutdown**: Ensure graceful shutdown with task completion or cancellation
+8. **Document semantics**: Clearly document executor behavior and guarantees
+9. **Profile performance**: Measure executor overhead and optimize for your workload
+10. **Test with different executors**: Verify behavior across different executor implementations

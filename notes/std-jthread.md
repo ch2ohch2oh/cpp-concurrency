@@ -1,182 +1,153 @@
-# std::jthread: Usage and Implementation
+# std::jthread (C++20)
+
+## Motivation
+
+`std::jthread` is a C++20 improvement over `std::thread` that addresses two major pain points: automatic joining and cooperative cancellation. Unlike `std::thread`, which requires explicit joining and has no built-in cancellation mechanism, `std::jthread` automatically joins on destruction and provides a standard way to request thread termination.
+
+The key motivation is to make thread management safer and more ergonomic:
+- **Automatic joining**: No risk of calling `std::terminate` if you forget to join
+- **Cooperative cancellation**: Built-in stop token mechanism for graceful shutdown
+- **Exception safety**: RAII semantics ensure proper cleanup
+- **Better integration**: Works seamlessly with condition variables and other synchronization primitives
+
+`std::jthread` is particularly useful for:
+- Long-running background tasks
+- Worker threads that need graceful shutdown
+- Applications with many threads where manual join management is error-prone
+- Scenarios requiring cooperative cancellation
 
 ## Practical Usage
 
-### Basic jthread Usage
+See the `examples/std-jthread/` directory for complete working examples:
+- `01-basic-jthread.cpp` - Basic jthread with automatic joining
+- `02-stop-token.cpp` - Cancellable worker with stop token
 
-```cpp
-#include <thread>
-#include <stop_token>
-#include <iostream>
+### Key Features
 
-void worker(std::stop_token stoken) {
-    while (!stoken.stop_requested()) {
-        std::cout << "Working...\n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-    std::cout << "Stopping...\n";
-}
+**Automatic Join**: `std::jthread` automatically joins in its destructor, preventing `std::terminate` calls from forgotten joins.
 
-int main() {
-    std::jthread t(worker);
-    
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    
-    t.request_stop();  // Request thread to stop
-    t.join();  // Automatic join on destruction
-    
-    return 0;
-}
-```
+**Stop Token**: Each `jthread` has an associated `stop_token` that can be used to cooperatively request thread termination.
 
-### jthread with Automatic Join
+**Stop Callback**: Register callbacks to execute when a stop is requested, useful for cleanup operations.
 
-```cpp
-#include <thread>
-#include <iostream>
+**Interruptible Waits**: Condition variables support stop tokens, allowing waits to be interrupted by stop requests.
 
-void task(int id) {
-    std::cout << "Task " << id << " running\n";
-}
+### Common Patterns
 
-int main() {
-    {
-        std::jthread t1(task, 1);
-        std::jthread t2(task, 2);
-        // Automatic join when leaving scope
-    }
-    std::cout << "Threads joined\n";
-    
-    return 0;
-}
-```
+**Basic Usage**: Pass a function to `std::jthread` constructor. The thread automatically joins when the `jthread` object is destroyed.
 
-### Stop Callback
+**Stop Token**: Pass `std::stop_token` as the first argument to worker functions. Check `stop_requested()` periodically to support cooperative cancellation.
 
-```cpp
-#include <thread>
-#include <stop_token>
-#include <iostream>
+**Stop Callback**: Use `std::stop_callback` to register cleanup actions that execute when a stop is requested.
 
-void worker_with_callback(std::stop_token stoken) {
-    std::stop_callback callback(stoken, []() {
-        std::cout << "Stop requested, cleaning up...\n";
-    });
-    
-    while (!stoken.stop_requested()) {
-        // Do work
-    }
-}
+**Interruptible Waits**: Use `condition_variable_any` with stop tokens to make condition variable waits interruptible.
 
-int main() {
-    std::jthread t(worker_with_callback);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    t.request_stop();
-    
-    return 0;
-}
-```
+## Pros
 
-### Interruptible Wait
+- **Automatic cleanup**: RAII semantics ensure threads are always joined
+- **Cooperative cancellation**: Standard mechanism for requesting thread termination
+- **Exception safe**: No risk of `std::terminate` from forgotten joins
+- **Better API**: More ergonomic than manual `std::thread` management
+- **Standard integration**: Works with condition variables and other primitives
+- **Backward compatible**: Can be used alongside `std::thread`
 
-```cpp
-#include <thread>
-#include <stop_token>
-#include <condition_variable>
-#include <mutex>
-#include <iostream>
+## Cons
 
-std::mutex mtx;
-std::condition_variable_any cv;
-bool ready = false;
-
-void waiter(std::stop_token stoken) {
-    std::unique_lock<std::mutex> lock(mtx);
-    
-    // Wait with stop token support
-    cv.wait(lock, stoken, [] { return ready; });
-    
-    if (stoken.stop_requested()) {
-        std::cout << "Wait interrupted\n";
-    } else {
-        std::cout << "Condition met\n";
-    }
-}
-
-int main() {
-    std::jthread t(waiter);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    t.request_stop();  // Interrupt wait
-    
-    return 0;
-}
-```
-
-### Realistic Example: Cancellable Task
-
-```cpp
-#include <thread>
-#include <stop_token>
-#include <atomic>
-#include <vector>
-#include <iostream>
-
-class CancellableProcessor {
-private:
-    std::jthread worker_;
-    std::atomic<bool> processing_;
-    
-public:
-    CancellableProcessor() : processing_(false) {}
-    
-    void start_processing(const std::vector<int>& data) {
-        processing_ = true;
-        worker_ = std::jthread([this, data](std::stop_token stoken) {
-            for (int item : data) {
-                if (stoken.stop_requested()) {
-                    std::cout << "Processing cancelled\n";
-                    break;
-                }
-                
-                // Process item
-                std::cout << "Processing: " << item << "\n";
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-            processing_ = false;
-        });
-    }
-    
-    void cancel() {
-        if (worker_.joinable()) {
-            worker_.request_stop();
-            worker_.join();
-        }
-    }
-    
-    bool is_processing() const {
-        return processing_;
-    }
-};
-
-int main() {
-    std::vector<int> data(100);
-    std::iota(data.begin(), data.end(), 0);
-    
-    CancellableProcessor processor;
-    processor.start_processing(data);
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    processor.cancel();
-    
-    return 0;
-}
-```
+- **C++20 only**: Requires a C++20-compatible compiler
+- **Cooperative only**: Threads must check stop token; cannot force termination
+- **Overhead**: Stop token mechanism adds minimal overhead
+- **Limited control**: Less fine-grained control than manual thread management
+- **Migration effort**: Existing code using `std::thread` needs refactoring
 
 ## Underlying Implementation
 
 ### std::jthread Implementation
+
+`std::jthread` is essentially a wrapper around `std::thread` with a `stop_source` for cancellation and automatic joining in the destructor:
+
+```cpp
+#include <thread>
+#include <stop_token>
+
+namespace std {
+    class jthread {
+    public:
+        // Constructors
+        jthread() noexcept = default;
+        
+        template<class Function, class... Args>
+        explicit jthread(Function&& f, Args&&... args) {
+            auto wrapper = [f = std::forward<Function>(f), 
+                           args = std::make_tuple(std::forward<Args>(args)...),
+                           &stoken = source_]() mutable {
+                std::apply([&](auto&&... a) {
+                    std::invoke(f, stoken, std::forward<decltype(a)>(a)...);
+                }, args);
+            };
+            
+            thread_ = std::thread(std::move(wrapper));
+        }
+        
+        // Destructor - automatic join
+        ~jthread() {
+            if (joinable()) {
+                request_stop();
+                join();
+            }
+        }
+        
+        // Delete copy operations
+        jthread(const jthread&) = delete;
+        jthread& operator=(const jthread&) = delete;
+        
+        // Move operations
+        jthread(jthread&&) noexcept = default;
+        jthread& operator=(jthread&&) noexcept = default;
+        
+        // Stop token access
+        std::stop_source get_stop_source() noexcept {
+            return source_;
+        }
+        
+        std::stop_token get_stop_token() const noexcept {
+            return source_.get_token();
+        }
+        
+        bool request_stop() noexcept {
+            return source_.request_stop();
+        }
+        
+        // Thread operations
+        bool joinable() const noexcept {
+            return thread_.joinable();
+        }
+        
+        void join() {
+            thread_.join();
+        }
+        
+        void detach() {
+            thread_.detach();
+        }
+        
+        std::thread::id get_id() const noexcept {
+            return thread_.get_id();
+        }
+        
+        std::thread::native_handle_type native_handle() {
+            return thread_.native_handle();
+        }
+        
+    private:
+        std::stop_source source_;
+        std::thread thread_;
+    };
+}
+```
+
+### std::stop_token Implementation
+
+The stop token is the read-only interface for checking stop requests:
 
 ```cpp
 #include <thread>
@@ -514,13 +485,13 @@ std::jthread jt(worker);
 
 ## Best Practices
 
-1. Use jthread instead of thread for automatic resource management
-2. Pass stop_token as first argument to worker functions
-3. Use stop_callback for cleanup on cancellation
-4. Check stop_requested() frequently in long-running loops
-5. Use condition_variable_any with stop_token for interruptible waits
-6. Design worker functions to be cooperative (check for stop)
-7. Avoid blocking operations that can't be interrupted
-8. Use request_stop() before destructor for explicit cancellation
-9. Be aware of callback execution context (synchronous)
-10. Test cancellation paths thoroughly
+1. **Use jthread instead of thread**: For automatic resource management and exception safety
+2. **Pass stop_token as first argument**: Follow the convention for worker functions
+3. **Use stop_callback for cleanup**: Register cleanup actions when stop is requested
+4. **Check stop_requested() frequently**: In long-running loops to support responsive cancellation
+5. **Use condition_variable_any**: With stop_token for interruptible waits
+6. **Design cooperative workers**: Ensure threads can respond to stop requests
+7. **Avoid uninterruptible blocking**: Use interruptible operations or timeouts
+8. **Request stop explicitly**: Before destructor for predictable shutdown timing
+9. **Be aware of callback context**: Callbacks execute synchronously in request_stop()
+10. **Test cancellation paths**: Thoroughly test all cancellation scenarios

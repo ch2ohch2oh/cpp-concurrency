@@ -1,242 +1,98 @@
-# Atomic Wait/Notify Mechanisms: Usage and Implementation
+# std::atomic::wait and notify (C++20)
+
+## Motivation
+
+C++20 introduced `wait` and `notify` operations on `std::atomic` to provide efficient synchronization without the overhead of condition variables. These operations allow threads to wait for atomic variables to change value, using efficient kernel-level mechanisms like futex on Linux.
+
+The key motivation is to provide a simpler and more efficient alternative to condition variables:
+- **Efficiency**: Uses kernel-level wait mechanisms (futex) instead of userspace condition variables
+- **Simplicity**: No need for mutexes - works directly on atomic variables
+- **Performance**: Avoids mutex overhead and spurious wakeups
+- **Scalability**: Better for high-contention scenarios
+- **Standardization**: Provides a portable API across platforms
+
+`atomic::wait/notify` is particularly useful for:
+- Producer-consumer patterns with atomic flags
+- Lock-free data structures
+- Simple signal/notification patterns
+- High-performance synchronization primitives
+- Scenarios where condition variables are overkill
 
 ## Practical Usage
 
-### Basic atomic::wait
+See the `examples/atomic-wait-notify/` directory for complete working examples:
+- `01-basic-wait.cpp` - Basic wait/notify pattern
+- `02-producer-consumer.cpp` - Producer-consumer using atomic wait/notify
 
-```cpp
-#include <atomic>
-#include <thread>
-#include <iostream>
+### Key Features
 
-int main() {
-    std::atomic<int> value(0);
-    
-    std::thread waiter([&]() {
-        std::cout << "Waiting for value to change...\n";
-        value.wait(0);  // Wait until value != 0
-        std::cout << "Value changed to: " << value.load() << "\n";
-    });
-    
-    std::thread notifier([&]() {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        value.store(42);
-        value.notify_one();  // Wake one waiter
-    });
-    
-    waiter.join();
-    notifier.join();
-    
-    return 0;
-}
-```
+**wait**: Blocks the thread until the atomic value changes from the expected value. Uses efficient kernel mechanisms like futex on Linux.
 
-### atomic::wait with Predicate
+**notify_one**: Wakes up one thread waiting on the atomic variable.
 
-```cpp
-#include <atomic>
-#include <thread>
-#include <iostream>
+**notify_all**: Wakes up all threads waiting on the atomic variable.
 
-int main() {
-    std::atomic<int> counter(0);
-    
-    std::thread producer([&]() {
-        for (int i = 0; i < 10; ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            counter.fetch_add(1, std::memory_order_release);
-            counter.notify_one();
-        }
-    });
-    
-    std::thread consumer([&]() {
-        int expected = 0;
-        counter.wait(expected, [](int v) { return v >= 5; });
-        std::cout << "Counter reached 5\n";
-    });
-    
-    producer.join();
-    consumer.join();
-    
-    return 0;
-}
-```
+**wait_for**: Wait with a timeout, returns status indicating whether notification was received or timeout occurred.
 
-### atomic::notify_one
+### Common Patterns
 
-```cpp
-#include <atomic>
-#include <thread>
-#include <vector>
+**Simple Signal**: Use atomic flag to signal between threads without mutexes.
 
-int main() {
-    std::atomic<bool> ready(false);
-    
-    std::vector<std::thread> waiters;
-    for (int i = 0; i < 5; ++i) {
-        waiters.emplace_back([&ready, i]() {
-            ready.wait(false);
-            std::cout << "Waiter " << i << " woke\n";
-        });
-    }
-    
-    std::thread notifier([&]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        ready.store(true);
-        ready.notify_one();  // Wake only one waiter
-    });
-    
-    for (auto& t : waiters) {
-        t.join();
-    }
-    notifier.join();
-    
-    return 0;
-}
-```
+**Producer-Consumer**: Use atomic flags to signal data availability in lock-free queues.
 
-### atomic::notify_all
+**Barrier Synchronization**: Wait for a counter to reach a specific value.
 
-```cpp
-#include <atomic>
-#include <thread>
-#include <vector>
+**Timeout Handling**: Use wait_for to avoid indefinite blocking.
 
-int main() {
-    std::atomic<bool> ready(false);
-    
-    std::vector<std::thread> waiters;
-    for (int i = 0; i < 5; ++i) {
-        waiters.emplace_back([&ready, i]() {
-            ready.wait(false);
-            std::cout << "Waiter " << i << " woke\n";
-        });
-    }
-    
-    std::thread notifier([&]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        ready.store(true);
-        ready.notify_all();  // Wake all waiters
-    });
-    
-    for (auto& t : waiters) {
-        t.join();
-    }
-    notifier.join();
-    
-    return 0;
-}
-```
+## Pros
 
-### atomic::wait_for with Timeout
+- **Efficient**: Uses kernel-level mechanisms (futex) for efficient waiting
+- **No mutex overhead**: Works directly on atomic variables without mutexes
+- **Simpler API**: Easier to use than condition variables for simple cases
+- **Better performance**: Lower overhead than condition variables for simple synchronization
+- **Portable**: Standard API across platforms with platform-specific optimizations
+- **Scalable**: Better for high-contention scenarios
 
-```cpp
-#include <atomic>
-#include <thread>
-#include <chrono>
-#include <iostream>
+## Cons
 
-int main() {
-    std::atomic<int> value(0);
-    
-    std::thread waiter([&]() {
-        auto start = std::chrono::steady_clock::now();
-        
-        if (value.wait_for(0, std::chrono::seconds(2)) == std::atomic_status::timeout) {
-            auto elapsed = std::chrono::steady_clock::now() - start;
-            std::cout << "Timeout after " 
-                      << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count()
-                      << "ms\n";
-        } else {
-            std::cout << "Value changed\n";
-        }
-    });
-    
-    std::thread notifier([&]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        value.store(42);
-        value.notify_one();
-    });
-    
-    waiter.join();
-    notifier.join();
-    
-    return 0;
-}
-```
-
-### Realistic Example: Producer-Consumer with atomic
-
-```cpp
-#include <atomic>
-#include <thread>
-#include <queue>
-#include <iostream>
-
-template<typename T>
-class AtomicQueue {
-private:
-    std::queue<T> queue_;
-    std::atomic<bool> has_data_{false};
-    std::mutex mtx_;
-    
-public:
-    void push(T value) {
-        {
-            std::lock_guard<std::mutex> lock(mtx_);
-            queue_.push(std::move(value));
-        }
-        has_data_.store(true, std::memory_order_release);
-        has_data_.notify_one();
-    }
-    
-    bool try_pop(T& value) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (queue_.empty()) return false;
-        value = std::move(queue_.front());
-        queue_.pop();
-        return true;
-    }
-    
-    void wait_and_pop(T& value) {
-        has_data_.wait(false);
-        std::lock_guard<std::mutex> lock(mtx_);
-        value = std::move(queue_.front());
-        queue_.pop();
-        if (queue_.empty()) {
-            has_data_.store(false, std::memory_order_release);
-        }
-    }
-};
-
-int main() {
-    AtomicQueue<int> queue;
-    
-    std::thread producer([&]() {
-        for (int i = 0; i < 10; ++i) {
-            queue.push(i);
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-    });
-    
-    std::thread consumer([&]() {
-        for (int i = 0; i < 10; ++i) {
-            int value;
-            queue.wait_and_pop(value);
-            std::cout << "Consumed: " << value << "\n";
-        }
-    });
-    
-    producer.join();
-    consumer.join();
-    
-    return 0;
-}
-```
+- **Limited to atomics**: Only works with atomic types, not arbitrary conditions
+- **Platform dependence**: Relies on OS support (futex on Linux, WaitOnAddress on Windows)
+- **Less flexible**: No built-in predicate support (must use loops)
+- **Spurious wakeups**: Still possible, need to handle with loops or predicates
+- **C++20 only**: Requires a C++20-compatible compiler
+- **Complex fallback**: Platforms without futex support need fallback implementations
 
 ## Underlying Implementation
 
 ### atomic::wait Implementation
+
+The `wait` operation checks if the atomic value has changed, and if not, blocks the thread using kernel-level mechanisms:
+
+```cpp
+namespace std {
+    template<typename T>
+    void atomic<T>::wait(T old, std::memory_order order) const noexcept {
+        // Check if value has already changed
+        T current = load(order);
+        if (current != old) return;
+        
+        // Wait for notification
+        futex_wait(&value_, old);
+    }
+    
+    template<typename T>
+    template<typename Predicate>
+    void atomic<T>::wait(T old, Predicate pred, std::memory_order order) const noexcept {
+        while (!pred(load(order))) {
+            futex_wait(&value_, load(order));
+        }
+    }
+}
+```
+
+### Futex-Based Implementation (Linux)
+
+On Linux, atomic wait/notify uses the futex system call for efficient kernel-level waiting:
 
 ```cpp
 namespace std {
@@ -479,13 +335,13 @@ void notifier() {
 
 ## Best Practices
 
-1. Use atomic::wait when you don't need a mutex
-2. Always use predicate version or loop to handle spurious wakeups
-3. Use notify_one for single consumer, notify_all for multiple
-4. Be aware of platform-specific implementations
-5. Consider fallback for platforms without futex support
-6. Use wait_for with timeout to avoid indefinite blocking
-7. Ensure proper memory ordering around wait/notify
-8. Compare with condition variables for complex synchronization
-9. Test on target platforms (behavior may vary)
-10. Document wait conditions clearly
+1. **Use when mutex isn't needed**: atomic::wait is ideal for simple flag-based synchronization
+2. **Handle spurious wakeups**: Always use the predicate version or wrap in a loop
+3. **Choose notify wisely**: Use notify_one for single consumer, notify_all for multiple
+4. **Consider platform support**: Be aware of platform-specific implementations (futex, WaitOnAddress)
+5. **Use timeouts**: Use wait_for to avoid indefinite blocking in critical code
+6. **Ensure proper memory ordering**: Use appropriate memory orders around wait/notify
+7. **Compare with condition variables**: Use condition variables for complex predicates
+8. **Test on target platforms**: Behavior may vary across platforms
+9. **Document conditions**: Clearly document wait conditions and invariants
+10. **Profile performance**: atomic::wait may have different performance characteristics than condition variables

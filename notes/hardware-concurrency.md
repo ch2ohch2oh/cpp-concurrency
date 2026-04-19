@@ -1,173 +1,70 @@
-# Hardware Concurrency: Usage and Implementation
+# Hardware Concurrency
+
+## Motivation
+
+Hardware concurrency refers to the number of concurrent threads that can be supported by the underlying hardware, typically the number of CPU cores or logical processors. Understanding and leveraging hardware concurrency is crucial for writing efficient concurrent programs that scale well without oversubscribing system resources.
+
+The key motivation is to optimize resource utilization:
+- **Optimal thread counts**: Match thread counts to available hardware resources
+- **Avoid oversubscription**: Prevent performance degradation from too many threads
+- **Load balancing**: Distribute work evenly across available cores
+- **Power efficiency**: Use appropriate resources to minimize energy consumption
+- **Scalability**: Adapt to different hardware configurations automatically
+
+Hardware concurrency is particularly useful for:
+- Determining optimal thread pool sizes
+- Adaptive parallel algorithms that scale with hardware
+- NUMA-aware programming for multi-socket systems
+- CPU affinity for performance-critical applications
+- Resource-constrained environments
 
 ## Practical Usage
 
-### std::thread::hardware_concurrency
+See the `examples/hardware-concurrency/` directory for complete working examples:
+- `01-hardware-concurrency.cpp` - Basic hardware concurrency detection
+- `02-adaptive-thread-pool.cpp` - Adaptive thread pool based on hardware concurrency
 
-```cpp
-#include <thread>
-#include <iostream>
+### Key Concepts
 
-int main() {
-    unsigned int cores = std::thread::hardware_concurrency();
-    std::cout << "Hardware concurrency: " << cores << "\n";
-    std::cout << "Number of concurrent threads supported: " << cores << "\n";
-    return 0;
-}
-```
+**std::thread::hardware_concurrency**: Returns the number of concurrent threads supported by the hardware implementation.
 
-### Adaptive Thread Pool Size
+**Thread Pool Sizing**: Use hardware concurrency to determine optimal thread pool size.
 
-```cpp
-#include <thread>
-#include <vector>
+**CPU Affinity**: Pin threads to specific CPU cores for cache locality and performance.
 
-class AdaptiveThreadPool {
-private:
-    std::vector<std::thread> workers_;
-    size_t num_threads_;
-    
-public:
-    AdaptiveThreadPool() {
-        num_threads_ = std::thread::hardware_concurrency();
-        if (num_threads_ == 0) {
-            num_threads_ = 4;  // Fallback
-        }
-        
-        for (size_t i = 0; i < num_threads_; ++i) {
-            workers_.emplace_back([this] {
-                // Worker loop
-            });
-        }
-    }
-    
-    size_t thread_count() const {
-        return num_threads_;
-    }
-};
-```
+**NUMA Awareness**: Consider Non-Uniform Memory Access architectures for multi-socket systems.
 
-### CPU Affinity (Linux)
+**Dynamic Scaling**: Adjust thread counts based on workload and hardware capabilities.
 
-```cpp
-#include <thread>
-#include <pthread.h>
-#include <iostream>
+### Common Patterns
 
-void set_cpu_affinity(std::thread& t, int cpu_id) {
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(cpu_id, &cpuset);
-    
-    pthread_setaffinity_np(t.native_handle(), sizeof(cpu_set_t), &cpuset);
-}
+**Fixed Thread Pools**: Create thread pools sized to hardware concurrency.
 
-void worker(int id) {
-    std::cout << "Worker " << id << " running\n";
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-}
+**Adaptive Scaling**: Dynamically adjust thread count based on load and hardware limits.
 
-int main() {
-    unsigned int cores = std::thread::hardware_concurrency();
-    std::cout << "Detected " << cores << " cores\n";
-    
-    std::vector<std::thread> threads;
-    for (unsigned int i = 0; i < cores; ++i) {
-        threads.emplace_back(worker, i);
-        set_cpu_affinity(threads.back(), i);
-    }
-    
-    for (auto& t : threads) {
-        t.join();
-    }
-    
-    return 0;
-}
-```
+**Core Pinning**: Pin critical threads to specific cores for consistent performance.
 
-### CPU Affinity (Windows)
+**NUMA Allocation**: Allocate memory on the NUMA node where the thread runs.
 
-```cpp
-#include <thread>
-#include <windows.h>
-#include <iostream>
+## Pros
 
-void set_cpu_affinity(std::thread& t, DWORD_PTR mask) {
-    SetThreadAffinityMask(t.native_handle(), mask);
-}
+- **Optimal performance**: Match thread counts to hardware for best performance
+- **Resource efficiency**: Avoid oversubscription and waste of system resources
+- **Portability**: Standard API works across different platforms
+- **Automatic scaling**: Adapt to different hardware configurations
+- **Power efficiency**: Use only necessary resources
+- **Load balancing**: Distribute work evenly across cores
 
-void worker(int id) {
-    std::cout << "Worker " << id << " running\n";
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-}
+## Cons
 
-int main() {
-    unsigned int cores = std::thread::hardware_concurrency();
-    std::cout << "Detected " << cores << " cores\n";
-    
-    std::vector<std::thread> threads;
-    for (unsigned int i = 0; i < cores; ++i) {
-        threads.emplace_back(worker, i);
-        set_cpu_affinity(threads.back(), 1ULL << i);
-    }
-    
-    for (auto& t : threads) {
-        t.join();
-    }
-    
-    return 0;
-}
-```
+- **May return 0**: Some implementations return 0 when the value is not well-defined
+- **Not always accurate**: May not account for hyperthreading or other factors
+- **Context dependent**: Optimal thread count depends on workload characteristics
+- **Oversimplification**: Complex workloads may need different strategies
+- **Dynamic changes**: Hardware concurrency can change (e.g., CPU throttling)
+- **Platform-specific**: Advanced features like NUMA require platform-specific code
 
-### NUMA-Aware Allocation
-
-```cpp
-#include <vector>
-#include <thread>
-
-// Linux NUMA support (requires libnuma)
-#ifdef __linux__
-#include <numa.h>
-
-class NumaAwareAllocator {
-public:
-    void* allocate(size_t size, int node) {
-        return numa_alloc_onnode(size, node);
-    }
-    
-    void deallocate(void* ptr, size_t size) {
-        numa_free(ptr, size);
-    }
-    
-    static int current_node() {
-        return numa_node_of_cpu(sched_getcpu());
-    }
-};
-#endif
-
-// Windows NUMA support
-#ifdef _WIN32
-#include <windows.h>
-
-class NumaAwareAllocator {
-public:
-    void* allocate(size_t size, int node) {
-        return VirtualAllocExNuma(GetCurrentProcess(), nullptr, size,
-                                MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE, node);
-    }
-    
-    void deallocate(void* ptr, size_t size) {
-        VirtualFree(ptr, 0, MEM_RELEASE);
-    }
-    
-    static int current_node() {
-        PROCESSOR_NUMBER proc_number;
-        GetCurrentProcessorNumberEx(&proc_number);
-        return proc_number.Group;
-    }
-};
-#endif
-```
+## Underlying Implementation
 
 ### Realistic Example: Parallel Processing with Hardware Concurrency
 
@@ -547,13 +444,13 @@ public:
 
 ## Best Practices
 
-1. Use hardware_concurrency to determine optimal thread count
-2. Consider hyperthreading when sizing thread pools
-3. Use CPU affinity for performance-critical threads
-4. Be aware of NUMA topology for memory-intensive workloads
-5. Align data structures to cache line size
-6. Consider memory bandwidth limitations
-7. Profile on target hardware for optimal configuration
-8. Handle cases where hardware_concurrency returns 0
-9. Use topology-aware scheduling for NUMA systems
-10. Monitor CPU frequency scaling effects
+1. **Handle zero return**: Some implementations return 0; provide a fallback default
+2. **Consider workload**: Optimal thread count depends on CPU-bound vs I/O-bound work
+3. **Profile empirically**: Test different thread counts for your specific workload
+4. **Use CPU affinity**: Pin threads to cores for performance-critical applications
+5. **Be NUMA-aware**: Consider memory locality on multi-socket systems
+6. **Monitor usage**: Track actual resource utilization vs theoretical limits
+7. **Account for hyperthreading**: Physical vs logical cores may affect performance
+8. **Dynamic scaling**: Adjust thread counts based on system conditions
+9. **Test on target hardware**: Behavior varies across architectures
+10. **Document assumptions**: Clearly document hardware requirements and expectations
