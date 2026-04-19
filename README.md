@@ -11,7 +11,7 @@ A comprehensive todo list of C++ concurrency topics that every C++ programmer sh
 - [x] Study futures and promises: `std::future`, `std::promise`, `std::packaged_task`, and `std::async` ([notes](notes/futures-promises.md))
 - [x] Master atomic operations: `std::atomic`, atomic types, and atomic operations on shared data ([notes](notes/atomic-operations.md))
 - [x] Understand memory ordering: `memory_order_relaxed`, `memory_order_acquire`, `memory_order_release`, `memory_order_acq_rel`, `memory_order_seq_cst` ([notes](notes/memory-ordering.md))
-- [ ] Learn deadlock detection and prevention techniques ([notes](notes/deadlock-detection-prevention.md))
+- [x] Learn deadlock detection and prevention techniques ([notes](notes/deadlock-detection-prevention.md))
 - [ ] Understand data races vs race conditions and how to prevent them ([notes](notes/data-races-race-conditions.md))
 
 ## Medium Priority Topics
