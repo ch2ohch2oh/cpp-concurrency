@@ -51,7 +51,7 @@ int main() {
 }
 ```
 
-### Race Condition Example - Logical Error
+### Race Condition Example - Logical Error (Check-then-act)
 
 ```cpp
 #include <mutex>
@@ -62,10 +62,12 @@ std::mutex mtx;
 int balance = 100;
 
 void withdraw(int amount) {
-    std::lock_guard<std::mutex> lock(mtx);  // No data race
-    
-    if (balance >= amount) {  // RACE CONDITION: Check-then-act
+    // RACE CONDITION: Check without lock
+    if (balance >= amount) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        
+        // Act with lock - but check and act are not atomic
+        std::lock_guard<std::mutex> lock(mtx);
         balance -= amount;
     }
 }
@@ -113,6 +115,10 @@ int main() {
 ```
 
 ### Double-Checked Locking Pattern
+
+**Intuition**: Optimize lazy initialization by avoiding lock acquisition after the singleton is created. First check (no lock) returns immediately if instance exists, avoiding lock overhead. Second check (with lock) handles race where multiple threads pass first check simultaneously.
+
+**Note**: Original pattern has memory ordering issues in pre-C++11. In modern C++, prefer static local variables (thread-safe in C++11), `std::call_once`, or `std::atomic` with proper memory ordering.
 
 ```cpp
 #include <mutex>
