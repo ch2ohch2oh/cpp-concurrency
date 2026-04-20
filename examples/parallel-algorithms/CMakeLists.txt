@@ -1,0 +1,5 @@
+add_executable(01-sort 01-sort.cpp)
+add_executable(02-for-each 02-for-each.cpp)
+add_executable(03-transform 03-transform.cpp)
+add_executable(04-reduce 04-reduce.cpp)
+add_executable(05-count-if 05-count-if.cpp)

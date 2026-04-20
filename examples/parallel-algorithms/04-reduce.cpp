@@ -11,12 +11,16 @@ int main() {
     // Sequential accumulate
     auto sum_seq = std::accumulate(data.begin(), data.end(), 0);
     std::cout << "Sequential sum: " << sum_seq << "\n";
-    
+
+#if __cpp_lib_parallel_algorithms >= 201603
     // Parallel reduce
-    auto sum_par = std::reduce(std::execution::par, 
-                              data.begin(), data.end(), 
+    auto sum_par = std::reduce(std::execution::par,
+                              data.begin(), data.end(),
                               0, std::plus<>{});
     std::cout << "Parallel sum: " << sum_par << "\n";
+#else
+    std::cout << "Parallel algorithms not available (requires C++17 with library support)\n";
+#endif
     
     return 0;
 }

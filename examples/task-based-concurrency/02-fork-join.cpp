@@ -4,42 +4,26 @@
 #include <numeric>
 #include <iostream>
 
-template<typename It, typename F>
-auto parallel_fork_join(It first, It last, F func, size_t threshold = 1000)
-    -> std::future<decltype(func(first, last))> {
-    
-    using ReturnType = decltype(func(first, last));
-    
+// Simple fork-join for summing a range
+int parallel_sum(std::vector<int>::iterator first, std::vector<int>::iterator last, size_t threshold = 1000) {
     auto size = std::distance(first, last);
     if (size < threshold) {
-        std::promise<ReturnType> prom;
-        std::future<ReturnType> fut = prom.get_future();
-        prom.set_value(func(first, last));
-        return fut;
+        return std::accumulate(first, last, 0);
     }
     
-    It mid = first + size / 2;
+    auto mid = first + size / 2;
     
-    auto left = parallel_fork_join(first, mid, func, threshold);
-    auto right = parallel_fork_join(mid, last, func, threshold);
+    auto left = std::async(std::launch::async, parallel_sum, first, mid, threshold);
+    auto right = std::async(std::launch::async, parallel_sum, mid, last, threshold);
     
-    return std::async(std::launch::async, [left = std::move(left), 
-                                             right = std::move(right), func]() mutable {
-        return func(left.get(), right.get());
-    });
+    return left.get() + right.get();
 }
 
 int main() {
     std::vector<int> data(10000);
     std::iota(data.begin(), data.end(), 0);
     
-    auto sum_future = parallel_fork_join(
-        data.begin(), data.end(),
-        [](auto first, auto last) {
-            return std::accumulate(first, last, 0);
-        }
-    );
-    
-    std::cout << "Sum: " << sum_future.get() << "\n";
+    auto sum = parallel_sum(data.begin(), data.end());
+    std::cout << "Sum: " << sum << "\n";
     return 0;
 }

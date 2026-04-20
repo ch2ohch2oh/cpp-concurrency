@@ -161,6 +161,43 @@ public:
 };
 ```
 
+### Work Stealing vs Single Work Queue
+
+**Single Work Queue:**
+- One global queue shared by all threads
+- All threads push/pop from the same queue
+- Simple to implement
+- **Disadvantages:**
+  - High contention on the queue (mutex contention)
+  - Poor cache locality (threads may work on unrelated tasks)
+  - Scalability bottleneck with many threads
+
+**Work Stealing:**
+- Each thread has its own local queue (deque)
+- Threads work on their own tasks first
+- Idle threads steal from others
+- **Advantages:**
+  - Low contention (threads mostly access their own queue)
+  - Better cache locality (threads work on related tasks)
+  - Better scalability with many cores
+  - Automatic load balancing
+- **Disadvantages:**
+  - More complex to implement
+  - Slightly higher memory overhead (multiple queues)
+
+**When to use each:**
+
+**Single Queue:**
+- Small number of threads (1-4)
+- Simple workloads
+- When implementation simplicity is priority
+
+**Work Stealing:**
+- Many threads (8+)
+- Complex, irregular workloads
+- When performance and scalability matter
+- Recursive parallel algorithms (like divide-and-conquer)
+
 ### Dynamic Thread Pool
 
 Dynamic thread pools adjust their size based on workload:

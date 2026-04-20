@@ -1,16 +1,18 @@
-#include <future>
-#include <vector>
 #include <algorithm>
-#include <numeric>
+#include <execution>
+#include <vector>
 #include <iostream>
+#include <numeric>
+#include <future>
+#include <type_traits>
 
 template<typename InputIt, typename MapFunc, typename ReduceFunc>
 auto map_reduce(InputIt first, InputIt last, 
                 MapFunc map, ReduceFunc reduce,
                 size_t chunk_size = 1000) 
-    -> typename std::result_of<MapFunc decltype(*first)>::type {
+    -> std::invoke_result_t<MapFunc, decltype(*first)> {
     
-    using MappedType = typename std::result_of<MapFunc decltype(*first)>::type;
+    using MappedType = std::invoke_result_t<MapFunc, decltype(*first)>;
     
     std::vector<std::future<MappedType>> futures;
     

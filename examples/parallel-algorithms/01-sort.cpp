@@ -14,18 +14,22 @@ int main() {
     auto start = std::chrono::high_resolution_clock::now();
     std::sort(data.begin(), data.end());
     auto end = std::chrono::high_resolution_clock::now();
-    std::cout << "Sequential: " 
+    std::cout << "Sequential: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
               << "ms\n";
-    
+
+#if __cpp_lib_parallel_algorithms >= 201603
     // Parallel sort
     std::generate(data.begin(), data.end(), [&]() { return rng(); });
     start = std::chrono::high_resolution_clock::now();
     std::sort(std::execution::par, data.begin(), data.end());
     end = std::chrono::high_resolution_clock::now();
-    std::cout << "Parallel: " 
+    std::cout << "Parallel: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
               << "ms\n";
+#else
+    std::cout << "Parallel algorithms not available (requires C++17 with library support)\n";
+#endif
     
     return 0;
 }
