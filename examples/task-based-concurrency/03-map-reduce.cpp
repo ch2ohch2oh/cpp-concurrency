@@ -37,7 +37,7 @@ auto map_reduce(InputIt first, InputIt last,
 }
 
 int main() {
-    std::vector<int> data(10000);
+    std::vector<int> data(100);
     std::iota(data.begin(), data.end(), 0);
     
     auto result = map_reduce(
