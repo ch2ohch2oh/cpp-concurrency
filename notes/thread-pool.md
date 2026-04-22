@@ -146,8 +146,12 @@ public:
     }
     
     void enqueue(std::function<void()> task) {
+        // Round-robin task distribution - simple but can be improved with:
+        // - Load-aware distribution (assign to least-loaded worker)
+        // - Affinity-based (related tasks to same worker)
+        // - Priority-based (critical tasks to specific workers)
         size_t worker_id = next_worker_.fetch_add(1) % workers_.size();
-        
+
         std::lock_guard<std::mutex> lock(workers_[worker_id]->mtx);
         workers_[worker_id]->local_queue.push_back(std::move(task));
     }
