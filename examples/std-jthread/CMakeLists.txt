@@ -1,2 +1,5 @@
 add_executable(01-basic-jthread 01-basic-jthread.cpp)
 add_executable(02-stop-token 02-stop-token.cpp)
+add_executable(03-thread-pool 03-thread-pool.cpp)
+add_executable(04-producer-consumer 04-producer-consumer.cpp)
+add_executable(05-background-task 05-background-task.cpp)

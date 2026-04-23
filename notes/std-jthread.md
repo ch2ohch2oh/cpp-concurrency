@@ -7,6 +7,8 @@
 The key motivation is to make thread management safer and more ergonomic:
 - **Automatic joining**: No risk of calling `std::terminate` if you forget to join
 - **Cooperative cancellation**: Built-in stop token mechanism for graceful shutdown
+  - Note: Checking stop_token is the user's responsibility - the worker must periodically call stop_requested()
+  - This is cooperative (not preemptive) cancellation for safety - threads can't be forcibly killed
 - **Exception safety**: RAII semantics ensure proper cleanup
 - **Better integration**: Works seamlessly with condition variables and other synchronization primitives
 
@@ -139,90 +141,10 @@ namespace std {
         }
         
     private:
-        std::stop_source source_;
-        std::thread thread_;
-    };
-}
-```
-
-### std::stop_token Implementation
-
-The stop token is the read-only interface for checking stop requests:
-
-```cpp
-#include <thread>
-#include <stop_token>
-
-namespace std {
-    class jthread {
-    public:
-        // Constructors
-        jthread() noexcept = default;
-        
-        template<class Function, class... Args>
-        explicit jthread(Function&& f, Args&&... args) {
-            auto wrapper = [f = std::forward<Function>(f), 
-                           args = std::make_tuple(std::forward<Args>(args)...),
-                           &stoken = source_]() mutable {
-                std::apply([&](auto&&... a) {
-                    std::invoke(f, stoken, std::forward<decltype(a)>(a)...);
-                }, args);
-            };
-            
-            thread_ = std::thread(std::move(wrapper));
-        }
-        
-        // Destructor - automatic join
-        ~jthread() {
-            if (joinable()) {
-                request_stop();
-                join();
-            }
-        }
-        
-        // Delete copy operations
-        jthread(const jthread&) = delete;
-        jthread& operator=(const jthread&) = delete;
-        
-        // Move operations
-        jthread(jthread&&) noexcept = default;
-        jthread& operator=(jthread&&) noexcept = default;
-        
-        // Stop token access
-        std::stop_source get_stop_source() noexcept {
-            return source_;
-        }
-        
-        std::stop_token get_stop_token() const noexcept {
-            return source_.get_token();
-        }
-        
-        bool request_stop() noexcept {
-            return source_.request_stop();
-        }
-        
-        // Thread operations
-        bool joinable() const noexcept {
-            return thread_.joinable();
-        }
-        
-        void join() {
-            thread_.join();
-        }
-        
-        void detach() {
-            thread_.detach();
-        }
-        
-        std::thread::id get_id() const noexcept {
-            return thread_.get_id();
-        }
-        
-        std::thread::native_handle_type native_handle() {
-            return thread_.native_handle();
-        }
-        
-    private:
+        // stop_source and stop_token together form a signal pipe:
+        // - source = write end (can request_stop)
+        // - token = read end (can check stop_requested)
+        // - shared state = the pipe connecting them
         std::stop_source source_;
         std::thread thread_;
     };
