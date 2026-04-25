@@ -5,21 +5,28 @@ template<typename T>
 struct Generator {
     struct promise_type {
         T current_value;
-        
+
+        // Create the return object (Generator) from the promise
         Generator get_return_object() {
             return Generator{std::coroutine_handle<promise_type>::from_promise(*this)};
         }
-        
+
+        // Suspend immediately after creation (lazy generator)
         std::suspend_always initial_suspend() { return {}; }
+
+        // Suspend at completion (keeps frame alive for cleanup)
         std::suspend_always final_suspend() noexcept { return {}; }
-        
+
+        // Handle co_return without a value
         void return_void() {}
-        
+
+        // Handle co_yield - store value and suspend
         std::suspend_always yield_value(T value) {
             current_value = value;
             return {};
         }
-        
+
+        // Handle unhandled exceptions
         void unhandled_exception() { std::terminate(); }
     };
     

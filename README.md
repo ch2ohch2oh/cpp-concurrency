@@ -22,7 +22,7 @@ A comprehensive todo list of C++ concurrency topics that every C++ programmer sh
 - [x] Understand parallel algorithms from C++17: `std::execution::par` and `std::execution::par_unseq` ([notes](notes/parallel-algorithms.md))
 - [x] Study thread pool implementation patterns and best practices ([notes](notes/thread-pool.md))
 - [x] Learn task-based concurrency patterns and work-stealing queues ([notes](notes/task-based-concurrency.md))
-- [ ] Understand C++20 coroutines and their use in asynchronous programming ([notes](notes/cpp20-coroutines.md))
+- [x] Understand C++20 coroutines and their use in asynchronous programming ([notes](notes/cpp20-coroutines.md))
 - [x] Study `std::jthread` (C++20) and automatic thread joining with `std::stop_token` ([notes](notes/std-jthread.md))
 
 ## Low Priority Topics

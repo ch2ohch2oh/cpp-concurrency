@@ -23,6 +23,7 @@ Coroutines are particularly useful for:
 See the `examples/cpp20-coroutines/` directory for complete working examples:
 - `01-generator.cpp` - Generator pattern with co_yield
 - `02-async-task.cpp` - Async tasks with co_return
+- `03-coroutine-handle.cpp` - Coroutine handle usage examples
 
 ### Key Concepts
 
@@ -35,6 +36,22 @@ See the `examples/cpp20-coroutines/` directory for complete working examples:
 **Promise Type**: Customizable object that controls coroutine behavior (allocation, suspension, return values, exception handling).
 
 **Coroutine Handle**: Low-level handle to a coroutine frame, used to resume, destroy, or check completion status.
+
+### Architecture Overview
+
+```mermaid
+graph TD
+    A[Coroutine Function] --> B[Coroutine Frame]
+    B --> C[Promise Object]
+    B --> D[State Machine]
+    B --> E[Local Variables]
+    B --> F[Coroutine Handle]
+
+    G[co_await] --> H[Awaiter]
+    H --> I[Suspended]
+    I -->|resume| J[await_resume]
+    J --> K[Continue Execution]
+```
 
 ## Pros
 
@@ -78,33 +95,72 @@ struct CoroutineFrame {
 
 ### Coroutine Handle
 
+A coroutine handle is a lightweight, non-owning reference to a coroutine frame. It provides the primary interface for interacting with suspended coroutines.
+
 ```cpp
 // std::coroutine_handle implementation
 namespace std {
     template<typename Promise = void>
     struct coroutine_handle {
         void* frame_;  // Pointer to coroutine frame
-        
+
         void resume() {
             // Jump to coroutine resume point
             __builtin_coro_resume(frame_);
         }
-        
+
         void destroy() {
             // Destroy coroutine frame
             __builtin_coro_destroy(frame_);
         }
-        
+
         bool done() const {
             return __builtin_coro_done(frame_);
         }
-        
+
         Promise& promise() const {
             return *static_cast<Promise*>(__builtin_coro_promise(frame_));
         }
     };
 }
 ```
+
+#### Key Characteristics
+
+- **Non-owning**: The handle does not own the coroutine frame. It's your responsibility to call `destroy()` when done.
+- **Lightweight**: Just a pointer to the coroutine frame (typically 8 bytes on 64-bit systems).
+- **Type-safe**: `coroutine_handle<Promise>` provides access to the promise type, while `coroutine_handle<void>` is type-erased.
+- **Moveable**: Handles can be moved but not copied (to avoid double-destroy issues).
+
+#### Creating Coroutine Handles
+
+There are three main ways to obtain a coroutine handle:
+
+```cpp
+// 1. From a promise object (most common in custom types)
+auto handle = std::coroutine_handle<MyPromise>::from_promise(promise_obj);
+
+// 2. From a coroutine address (low-level)
+auto handle = std::coroutine_handle<>::from_address(address);
+
+// 3. No-argument constructor creates a null handle
+std::coroutine_handle<> empty_handle;
+```
+
+#### Handle Types
+
+```cpp
+// Type-erased handle - can refer to any coroutine
+std::coroutine_handle<> generic_handle;
+
+// Typed handle - provides access to promise
+std::coroutine_handle<MyPromise> typed_handle;
+
+// Conversion from typed to type-erased
+std::coroutine_handle<> erased = typed_handle;
+```
+
+For detailed examples of coroutine handle usage, see `examples/cpp20-coroutines/03-coroutine-handle.cpp`.
 
 ### Promise Type Requirements
 
@@ -176,10 +232,10 @@ Coroutine frames are heap-allocated with a specific layout:
 ```cpp
 // Coroutine frame memory layout
 struct CoroutineFrame {
-    // Control block
-    void* resume_point;
-    void* promise_ptr;
-    void* destructor;
+    // Control block (compiler-generated)
+    // void* resume_point;   // Where to resume after co_await (each suspension point has unique address)
+    // void* promise_ptr;     // Pointer to promise object for calling promise methods
+    // void* destructor;      // Cleanup code for local variables and promise destruction
     
     // Promise object
     Promise promise;
@@ -196,6 +252,13 @@ struct CoroutineFrame {
 The compiler transforms coroutines into state machines:
 
 ```cpp
+// Awaiter example (what Awaiter{} looks like)
+struct Awaiter {
+    bool await_ready() { return false; }  // Always suspend
+    void await_suspend(std::coroutine_handle<>) {}  // Do nothing on suspend
+    void await_resume() {}  // Do nothing on resume
+};
+
 // Before: Coroutine
 Task my_coroutine() {
     int x = 42;
@@ -212,15 +275,16 @@ Task my_coroutine() {
         int y;
         Promise promise;
     };
-    
+
     Frame* frame = new Frame;
     auto handle = std::coroutine_handle<PromiseType>::from_promise(frame->promise);
-    
+
 resume:
     switch (frame->state) {
         case 0:
             frame->x = 42;
             frame->state = 1;
+            auto awaiter = Awaiter{};  // Created from co_await expression
             if (!awaiter.await_ready()) {
                 awaiter.await_suspend(handle);
                 return Task{handle};
@@ -235,7 +299,7 @@ resume:
             // Completed
             break;
     }
-    
+
     return Task{handle};
 }
 ```
