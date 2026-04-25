@@ -29,7 +29,7 @@ A comprehensive todo list of C++ concurrency topics that every C++ programmer sh
 
 - [ ] Learn about `std::atomic_ref` and atomic operations on non-atomic objects (C++20) ([notes](notes/atomic-ref.md))
 - [ ] Understand wait/notify mechanisms: `std::atomic::wait` and `std::atomic::notify_one/notify_all` (C++20) ([notes](notes/atomic-wait-notify.md))
-- [ ] Study executor concepts and the future of parallel execution in C++ ([notes](notes/executor-concepts.md))
+- [x] Study executor concepts and the future of parallel execution in C++ ([notes](notes/executor-concepts.md))
 - [x] Learn about hardware concurrency: `std::thread::hardware_concurrency` and CPU affinity ([notes](notes/hardware-concurrency.md))
 - [x] Understand exception handling in multithreaded contexts ([notes](notes/exception-handling.md))
 
